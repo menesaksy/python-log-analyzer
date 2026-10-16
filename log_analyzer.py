@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import csv
+import ipaddress
 import re
 import sys
 from collections import Counter
@@ -15,8 +16,14 @@ def count_failed_attempts(lines):
     counts = Counter()
     for line in lines:
         match = FAILED_PASSWORD_PATTERN.search(line.rstrip())
-        if match:
-            counts[match.group("ip")] += 1
+        if not match:
+            continue
+        ip = match.group("ip")
+        try:
+            ipaddress.ip_address(ip)
+        except ValueError:
+            continue
+        counts[ip] += 1
     return counts
 
 
@@ -72,7 +79,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        with open(args.logfile, "r", encoding="utf-8", errors="ignore") as f:
+        with open(args.logfile, "r", encoding="utf-8", errors="replace") as f:
             counts = count_failed_attempts(f)
     except FileNotFoundError:
         print(f"Hata: '{args.logfile}' dosyası bulunamadı.", file=sys.stderr)
