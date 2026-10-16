@@ -6,15 +6,15 @@ import sys
 from collections import Counter
 
 FAILED_PASSWORD_PATTERN = re.compile(
-    r"Failed password for (?:invalid user )?\S+ from "
-    r"(?P<ip>\d{1,3}(?:\.\d{1,3}){3}) port \d+"
+    r"Failed password for (?:invalid user )?.+ from "
+    r"(?P<ip>\d{1,3}(?:\.\d{1,3}){3}) port \d+ ssh2$"
 )
 
 
 def count_failed_attempts(lines):
     counts = Counter()
     for line in lines:
-        match = FAILED_PASSWORD_PATTERN.search(line)
+        match = FAILED_PASSWORD_PATTERN.search(line.rstrip())
         if match:
             counts[match.group("ip")] += 1
     return counts
@@ -73,12 +73,17 @@ def main():
 
     try:
         with open(args.logfile, "r", encoding="utf-8", errors="ignore") as f:
-            lines = f.readlines()
+            counts = count_failed_attempts(f)
     except FileNotFoundError:
         print(f"Hata: '{args.logfile}' dosyası bulunamadı.", file=sys.stderr)
         sys.exit(1)
+    except IsADirectoryError:
+        print(f"Hata: '{args.logfile}' bir dosya değil, dizin.", file=sys.stderr)
+        sys.exit(1)
+    except PermissionError:
+        print(f"Hata: '{args.logfile}' okuma izni yok.", file=sys.stderr)
+        sys.exit(1)
 
-    counts = count_failed_attempts(lines)
     report = build_report(counts, args.threshold)
     print_report(report, args.threshold)
 
