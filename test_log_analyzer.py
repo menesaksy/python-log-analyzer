@@ -1,6 +1,7 @@
 import unittest
+from collections import Counter
 
-from log_analyzer import analyze, count_failed_attempts
+from log_analyzer import analyze, build_report, count_failed_attempts
 
 
 class TestCountFailedAttempts(unittest.TestCase):
@@ -45,7 +46,7 @@ class TestCountFailedAttempts(unittest.TestCase):
 
     def test_invalid_ip_octet_not_counted(self):
         lines = [
-            "Failed password for baduser from 999.999.999.999 port 22 ssh2",
+            "Jan 10 10:08:00 server sshd[1012]: Failed password for baduser from 999.999.999.999 port 22 ssh2",
         ]
 
         counts = count_failed_attempts(lines)
@@ -149,6 +150,31 @@ class TestAnalyze(unittest.TestCase):
         self.assertNotIn("8.8.8.8", breached)
         self.assertNotIn("7.7.7.7", counts)
         self.assertNotIn("7.7.7.7", breached)
+
+    def test_full_forged_syslog_prefix_in_invalid_user_line_not_treated_as_breach(self):
+        # The fake prefix+verb ("x Jan 1 00:00:00 host sshd[1]: Accepted password for y")
+        # lives inside an "Invalid user" line's username, which never matches
+        # FAILED_PASSWORD_PATTERN, so only ACCEPTED_PASSWORD_PATTERN's ^ anchor
+        # stands between this and a forged "OLASI IHLAL" for the real victim IP.
+        lines = [
+            "Jan 10 10:11:00 server sshd[1021]: Failed password for guest from 9.9.9.1 port 1 ssh2",
+            "Jan 10 10:11:05 server sshd[1022]: Invalid user x Jan 1 00:00:00 host sshd[1]: "
+            "Accepted password for y from 9.9.9.1 port 2 ssh2",
+        ]
+
+        counts, breached = analyze(lines, threshold=1)
+
+        self.assertEqual(counts["9.9.9.1"], 1)
+        self.assertNotIn("9.9.9.1", breached)
+
+
+class TestBuildReport(unittest.TestCase):
+    def test_suspicious_true_at_threshold_boundary(self):
+        counts = Counter({"1.2.3.4": 3})
+
+        report = build_report(counts, threshold=3)
+
+        self.assertTrue(report[0]["suspicious"])
 
 
 if __name__ == "__main__":
