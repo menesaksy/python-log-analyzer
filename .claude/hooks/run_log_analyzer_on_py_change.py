@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""PostToolUse hook: after Edit/Write touches a .py file, re-run log_analyzer.py
-against sample_auth.log so regressions in parsing/counting show up immediately."""
+"""PostToolUse hook: after Edit/Write touches a .py file, run the test suite
+so a regression in parsing/counting shows up immediately after the change
+that caused it. On failure, exit 2 with the test output on stderr so Claude
+sees it and can fix it."""
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -21,7 +24,7 @@ def main():
 
     try:
         result = subprocess.run(
-            [sys.executable, "log_analyzer.py", "sample_auth.log", "-t", "1"],
+            [sys.executable, "-m", "unittest", "test_log_analyzer", "-v"],
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
@@ -29,11 +32,19 @@ def main():
             errors="replace",
             timeout=60,
         )
-        output = result.stdout + result.stderr
     except subprocess.TimeoutExpired:
-        output = "test zaman aşımına uğradı"
+        print("test zaman aşımına uğradı", file=sys.stderr)
+        sys.exit(2)
 
-    print(json.dumps({"systemMessage": f"log_analyzer.py sample_auth.log -t 1:\n{output}"}))
+    output = result.stdout + result.stderr
+
+    if result.returncode == 0:
+        match = re.search(r"Ran (\d+) tests?", output)
+        count = match.group(1) if match else "?"
+        print(json.dumps({"systemMessage": f"✅ {count} test geçti"}))
+    else:
+        print(output, file=sys.stderr)
+        sys.exit(2)
 
 
 if __name__ == "__main__":
