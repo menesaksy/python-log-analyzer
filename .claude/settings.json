@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/run_log_analyzer_on_py_change.py",
+            "timeout": 65,
+            "statusMessage": "Running log_analyzer.py sample_auth.log..."
+          }
+        ]
+      }
+    ]
+  }
+}
