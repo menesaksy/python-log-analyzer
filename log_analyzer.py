@@ -6,9 +6,23 @@ import re
 import sys
 from collections import Counter
 
+SYSLOG_SSHD_PREFIX = r"^\S+\s+\d+\s+\d{2}:\d{2}:\d{2}\s+\S+\s+sshd\[\d+\]: "
 FAILED_PASSWORD_PATTERN = re.compile(
-    r"Failed password for .+ from (?P<ip>\d{1,3}(?:\.\d{1,3}){3}) port \d+ ssh2$"
+    SYSLOG_SSHD_PREFIX
+    + r"Failed password for .+ from (?P<ip>\d{1,3}(?:\.\d{1,3}){3}) port \d+ ssh2$"
 )
+ACCEPTED_PASSWORD_PATTERN = re.compile(
+    SYSLOG_SSHD_PREFIX
+    + r"Accepted password for .+ from (?P<ip>\d{1,3}(?:\.\d{1,3}){3}) port \d+ ssh2$"
+)
+
+
+def _is_valid_ip(ip):
+    try:
+        ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return True
 
 
 def count_failed_attempts(lines):
@@ -18,17 +32,38 @@ def count_failed_attempts(lines):
         if not match:
             continue
         ip = match.group("ip")
-        try:
-            ipaddress.ip_address(ip)
-        except ValueError:
-            continue
-        counts[ip] += 1
+        if _is_valid_ip(ip):
+            counts[ip] += 1
     return counts
 
 
-def build_report(counts, threshold):
+def analyze(lines, threshold):
+    failed_counts = Counter()
+    breached = set()
+    for line in lines:
+        stripped = line.rstrip()
+        failed = FAILED_PASSWORD_PATTERN.search(stripped)
+        if failed:
+            ip = failed.group("ip")
+            if _is_valid_ip(ip):
+                failed_counts[ip] += 1
+            continue
+        accepted = ACCEPTED_PASSWORD_PATTERN.search(stripped)
+        if accepted:
+            ip = accepted.group("ip")
+            if _is_valid_ip(ip) and failed_counts[ip] >= threshold:
+                breached.add(ip)
+    return failed_counts, breached
+
+
+def build_report(counts, threshold, breached_ips=frozenset()):
     return [
-        {"ip": ip, "attempts": attempts, "suspicious": attempts >= threshold}
+        {
+            "ip": ip,
+            "attempts": attempts,
+            "suspicious": attempts >= threshold,
+            "breach": ip in breached_ips,
+        }
         for ip, attempts in counts.most_common()
     ]
 
@@ -41,7 +76,12 @@ def print_report(report, threshold):
     print(f"{'IP ADRESİ':<20}{'DENEME SAYISI':<15}{'DURUM'}")
     print("-" * 50)
     for row in report:
-        status = "ŞÜPHELİ" if row["suspicious"] else "normal"
+        if row["breach"]:
+            status = "OLASI İHLAL"
+        elif row["suspicious"]:
+            status = "ŞÜPHELİ"
+        else:
+            status = "normal"
         print(f"{row['ip']:<20}{row['attempts']:<15}{status}")
 
     suspicious_count = sum(1 for row in report if row["suspicious"])
@@ -54,7 +94,7 @@ def print_report(report, threshold):
 
 def write_csv(report, output_path):
     with open(output_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["ip", "attempts", "suspicious"])
+        writer = csv.DictWriter(f, fieldnames=["ip", "attempts", "suspicious", "breach"])
         writer.writeheader()
         writer.writerows(report)
     print(f"Rapor '{output_path}' dosyasına yazıldı.")
@@ -79,7 +119,7 @@ def main():
 
     try:
         with open(args.logfile, "r", encoding="utf-8", errors="replace") as f:
-            counts = count_failed_attempts(f)
+            counts, breached = analyze(f, args.threshold)
     except FileNotFoundError:
         print(f"Hata: '{args.logfile}' dosyası bulunamadı.", file=sys.stderr)
         sys.exit(1)
@@ -90,7 +130,7 @@ def main():
         print(f"Hata: '{args.logfile}' okuma izni yok.", file=sys.stderr)
         sys.exit(1)
 
-    report = build_report(counts, args.threshold)
+    report = build_report(counts, args.threshold, breached)
     print_report(report, args.threshold)
 
     if args.output and report:

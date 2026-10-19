@@ -11,3 +11,9 @@ Jan 10 10:05:00 server sshd[1009]: Accepted password for enes from 192.0.2.44 po
 Jan 10 10:06:00 server sshd[1010]: Failed password for guest from 192.0.2.44 port 60001 ssh2
 Jan 10 10:07:00 server sshd[1011]: Failed password for a from 9.9.9.9 port 1 from 6.6.6.6 port 2222 ssh2
 Jan 10 10:08:00 server sshd[1012]: Failed password for baduser from 999.999.999.999 port 22 ssh2
+Jan 10 10:09:00 server sshd[1013]: Failed password for root from 45.33.22.11 port 1 ssh2
+Jan 10 10:09:05 server sshd[1014]: Failed password for root from 45.33.22.11 port 2 ssh2
+Jan 10 10:09:10 server sshd[1015]: Failed password for root from 45.33.22.11 port 3 ssh2
+Jan 10 10:09:15 server sshd[1016]: Failed password for root from 45.33.22.11 port 4 ssh2
+Jan 10 10:09:20 server sshd[1017]: Failed password for root from 45.33.22.11 port 5 ssh2
+Jan 10 10:09:25 server sshd[1018]: Accepted password for root from 45.33.22.11 port 6 ssh2
