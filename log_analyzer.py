@@ -7,8 +7,7 @@ import sys
 from collections import Counter
 
 FAILED_PASSWORD_PATTERN = re.compile(
-    r"Failed password for (?:invalid user )?.+ from "
-    r"(?P<ip>\d{1,3}(?:\.\d{1,3}){3}) port \d+ ssh2$"
+    r"Failed password for .+ from (?P<ip>\d{1,3}(?:\.\d{1,3}){3}) port \d+ ssh2$"
 )
 
 
